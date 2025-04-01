@@ -21,7 +21,7 @@ TFT_eSPI tft = TFT_eSPI();
 
 
 // Credenciais da rede WiFi (caso sua rede não tenha senha, coloque password = "")
-const char* ssid     = "SALA 07";
+const char* ssid     = "SALA 16";
 const char* password = "info@134";
 
 // URL da API no computador onde está rodando o Python
