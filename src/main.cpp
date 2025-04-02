@@ -18,18 +18,15 @@ TFT_eSPI tft = TFT_eSPI();
 #define TFT_RST  4
 #define TFT_BL   32
 
-
-
-// Credenciais da rede WiFi (caso sua rede não tenha senha, coloque password = "")
-const char* ssid     = "SALA 16";
-const char* password = "info@134";
+// Credenciais da rede WiFi
+const char* ssid     = "LIMA";
+const char* password = "Mikasefa";
 
 // URL da API no computador onde está rodando o Python
 const char* url = "http://192.168.0.39:5000/consumoequipamento";
 
-// 🔹 **Prototipação das funções (para evitar erro de "não declarado no escopo")**
 void calculaGrandezasEletricas();
-void enviaDadosParaAPI(float corrente, float tensao, float potencia);
+void enviaDadosParaAPI(float consumo, String data, int id_equipamento);
 
 float correnteIN = 0.0;
 float tensaoRms  = 0.0;
@@ -37,31 +34,44 @@ float potencia   = 0.0;
 
 // Inicializa WiFi e Serial
 void setup() {
-    
+  
     tft.begin();
     tft.setRotation(0);
     tft.fillScreen(TFT_BLACK);
     Serial.begin(115200);
+
     WiFi.begin(ssid, password);
     Serial.print("Conectando ao WiFi");
-
-    while (WiFi.status() != WL_CONNECTED) {
+    
+    int tentativas = 0;
+    while (WiFi.status() != WL_CONNECTED && tentativas < 30) {  // Tenta por 30 segundos
         delay(1000);
         Serial.print(".");
+        tentativas++;
     }
-    Serial.println("\nConectado ao WiFi!");
-    Serial.print("Endereço IP: ");
-    Serial.println(WiFi.localIP());
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nConectado ao WiFi!");
+        Serial.print("Endereço IP: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("\nFalha ao conectar no WiFi. Reiniciando ESP...");
+        ESP.restart();
+    }
 }
 
 // Faz leituras e envia para a API
 void loop() {
     calculaGrandezasEletricas();
-    enviaDadosParaAPI(correnteIN, tensaoRms, potencia);
+
+    // Obtém a data e hora do ESP32
+    String dataAtual = String(millis());  // Usando millis() como timestamp simples
+
+    enviaDadosParaAPI(potencia, dataAtual, 1); // ID do equipamento = 1
     delay(60000);  // Aguarda 1 minuto antes de enviar novamente
 }
 
-// 🔹 **Implementação das funções abaixo do loop()**
+// Calcula corrente, tensão e potência
 void calculaGrandezasEletricas() {
     uint32_t adcValueCorrente = analogRead(ADC_PIN_corrente);
     correnteIN = (adcValueCorrente / 4095.0) * 20.0;  // Corrente simulada
@@ -83,16 +93,19 @@ void calculaGrandezasEletricas() {
     Serial.println(" W");
 }
 
-void enviaDadosParaAPI(float corrente, float tensao, float potencia) {
+// Envia os dados para a API no formato correto
+void enviaDadosParaAPI(float consumo, String data, int id_equipamento) {
     if(WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
         http.begin(url);
         http.addHeader("Content-Type", "application/json");
 
-        String payload = String("{\"corrente\":") + corrente + 
-                         String(", \"tensao\":") + tensao + 
-                         String(", \"potencia\":") + potencia + "}";
-                         
+        String payload = "{\"consumo\":" + String(consumo) + 
+                         ", \"data_consumo\":\"" + data + 
+                         "\", \"id_equipamento\":" + String(id_equipamento) + "}";
+
+        Serial.println("Enviando JSON: " + payload);
+
         int httpResponseCode = http.POST(payload);
 
         if (httpResponseCode > 0) {
